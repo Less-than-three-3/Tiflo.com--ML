@@ -1,0 +1,10 @@
+model:
+  _target_: img_server.ImageCaptionModel
+  model_id: "llava-hf/llava-1.5-7b-hf"
+  use_only_cuda: False
+  use_translator: True
+  translator: 'google'
+
+server:
+  port: 8080
+  ip: 127.0.0.1
