@@ -18,6 +18,8 @@ from transformers import AutoProcessor, LlavaForConditionalGeneration
 from protos.img2seq_pb2_grpc import ImageCaptioningServicer, add_ImageCaptioningServicer_to_server
 from protos.img2seq_pb2 import Text
 
+from stubs import LLavaModelStub, LLavaProcessorStub
+
 warnings.filterwarnings(action = 'ignore')
 
 logger = logging.getLogger(__name__)
@@ -31,11 +33,11 @@ class ImageCaptionModel:
 
     def __init__(self, model_id, use_only_cuda, use_translator, translator) -> None:
         if torch.cuda.is_available():
-            logger.ingo('Use cuda')
+            logger.info('Use cuda')
             self.device = 'cuda'
         else:
             logger.warning('Cuda is not available')
-            if use_only_cuda == True:
+            if use_only_cuda:
                 raise RuntimeError('Only cuda available')
             
             self.device = 'cpu'
@@ -48,8 +50,8 @@ class ImageCaptionModel:
         
         # self.processor = AutoProcessor.from_pretrained(model_id)
         
-        self.model = None
-        self.processor = None
+        self.model = LLavaModelStub()
+        self.processor = LLavaProcessorStub()
 
         self.prompt = "USER: <image>\nwhat is shown in the image?\nASSISTANT:"
 
@@ -85,6 +87,7 @@ class ImageCaptioningServicer(ImageCaptioningServicer):
 
     def ImageCaption(self, request):
         image = Image.open(BytesIO(self.image))
+        # image.show()
         generated_text = self.model.generate_text(image)
         output_text = Text()
         output_text.text = generated_text
