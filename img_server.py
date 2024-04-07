@@ -35,16 +35,19 @@ class ImageCaptionModel:
         if torch.cuda.is_available():
             logger.info('Use cuda')
             self.device = 'cuda'
+            self.torch_type = torch.float16
         else:
             logger.warning('Cuda is not available')
             if use_only_cuda:
                 raise RuntimeError('Only cuda available')
             
             self.device = 'cpu'
+            self.torch_type = torch.float32
+
         
         # self.model = LlavaForConditionalGeneration.from_pretrained(
         #                                                             model_id, 
-        #                                                             torch_dtype=torch.float16, 
+        #                                                             torch_dtype=self.torch_type, 
         #                                                             low_cpu_mem_usage=True,
         #                                                         ).eval().to(self.device)
         
@@ -53,6 +56,8 @@ class ImageCaptionModel:
         self.model = LLavaModelStub()
         self.processor = LLavaProcessorStub()
 
+        self.use_translator = use_translator
+        self.translator = translator
         self.prompt = "USER: <image>\nwhat is shown in the image?\nASSISTANT:"
 
     def generate_text(self, image):
@@ -61,7 +66,7 @@ class ImageCaptionModel:
         with torch.no_grad():
             start = time.time()
             raw_image = Image.open(image)
-            inputs = self.processor(self.prompt, raw_image, return_tensors='pt').to(self.device, torch.float16)
+            inputs = self.processor(self.prompt, raw_image, return_tensors='pt').to(self.device, self.torch_type)
 
             output = self.model.generate(**inputs, max_new_tokens=200, do_sample=False)
             text = self.processor.decode(output[0][2:], skip_special_tokens=True)[prompt_len:]
@@ -76,7 +81,7 @@ class ImageCaptionModel:
     def translate(self, en_text):
         start_translate = time.time()
         translation = ts.translate_text(en_text, translator=self.translator, from_language='en', to_language='ru')
-        logger.debug(f'Время перевода: {time.time() - start_translate}' )
+        logger.debug(f'Время перевода: {time.time() - start_translate}')
 
         return translation
 
