@@ -91,12 +91,12 @@ class ImageCaptioningServicer(ImageCaptioningServicer):
         self.model = hydra.utils.instantiate(cfg.model)
 
     def ImageCaption(self, request):
-        image = Image.open(BytesIO(self.image))
-        # image.show()
-        generated_text = self.model.generate_text(image)
-        output_text = Text()
-        output_text.text = generated_text
-        return output_text
+        with Image.open(self.image_path) as image:
+            # image.show()
+            generated_text = self.model.generate_text(image)
+            output_text = Text()
+            output_text.text = generated_text
+            return output_text
 
 
 def logging_init():

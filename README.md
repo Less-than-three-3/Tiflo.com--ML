@@ -3,7 +3,7 @@
 ```
 cd protos
 
-python3 -m grpc_tools.protoc -I../../image2seq/protos --python_out=. --pyi_out=. --grpc_python_out=. img2seq.proto
+python3 -m grpc_tools.protoc -I../protos --python_out=. --pyi_out=. --grpc_python_out=. img2seq.proto
 
 cd ..
 ```

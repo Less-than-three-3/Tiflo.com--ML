@@ -6,7 +6,7 @@ option go_package = "pkg/grpc/generated";
 
 
 message Image {
-  bytes image = 1;
+  string image_path = 1;
 }
 
 message Text {

@@ -5,10 +5,10 @@ from typing import ClassVar as _ClassVar, Optional as _Optional
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Image(_message.Message):
-    __slots__ = ("image",)
-    IMAGE_FIELD_NUMBER: _ClassVar[int]
-    image: bytes
-    def __init__(self, image: _Optional[bytes] = ...) -> None: ...
+    __slots__ = ("image_path",)
+    IMAGE_PATH_FIELD_NUMBER: _ClassVar[int]
+    image_path: str
+    def __init__(self, image_path: _Optional[str] = ...) -> None: ...
 
 class Text(_message.Message):
     __slots__ = ("text",)
