@@ -45,27 +45,26 @@ class ImageCaptionModel:
             self.torch_type = torch.float32
 
         
-        # self.model = LlavaForConditionalGeneration.from_pretrained(
-        #                                                             model_id, 
-        #                                                             torch_dtype=self.torch_type, 
-        #                                                             low_cpu_mem_usage=True,
-        #                                                         ).eval().to(self.device)
+        self.model = LlavaForConditionalGeneration.from_pretrained(
+                                                                    model_id, 
+                                                                    torch_dtype=self.torch_type, 
+                                                                    low_cpu_mem_usage=True,
+                                                                ).eval().to(self.device)
         
-        # self.processor = AutoProcessor.from_pretrained(model_id)
+        self.processor = AutoProcessor.from_pretrained(model_id)
         
-        self.model = LLavaModelStub()
-        self.processor = LLavaProcessorStub()
+        # self.model = LLavaModelStub()
+        # self.processor = LLavaProcessorStub()
 
         self.use_translator = use_translator
         self.translator = translator
         self.prompt = "USER: <image>\nwhat is shown in the image?\nASSISTANT:"
 
-    def generate_text(self, image):
+    def generate_text(self, raw_image):
         prompt_len = 45
 
         with torch.no_grad():
             start = time.time()
-            raw_image = Image.open(image)
             inputs = self.processor(self.prompt, raw_image, return_tensors='pt').to(self.device, self.torch_type)
 
             output = self.model.generate(**inputs, max_new_tokens=200, do_sample=False)
@@ -86,17 +85,16 @@ class ImageCaptionModel:
         return translation
 
 
-class ImageCaptioningServicer(ImageCaptioningServicer):
+class ImageCaptioningService(ImageCaptioningServicer):
     def __init__(self, cfg):
         self.model = hydra.utils.instantiate(cfg.model)
 
-    def ImageCaption(self, request):
-        with Image.open(self.image_path) as image:
-            # image.show()
-            generated_text = self.model.generate_text(image)
-            output_text = Text()
-            output_text.text = generated_text
-            return output_text
+    def ImageCaption(self, request, context):
+        image = Image.open(request.image_path)
+        generated_text = self.model.generate_text(image)
+        output_text = Text()
+        output_text.text = generated_text
+        return output_text
 
 
 def logging_init():
@@ -113,7 +111,7 @@ def logging_init():
 @hydra.main(version_base=None, config_path="config", config_name="imagecap_server")
 def start_image_captioning_server(cfg: DictConfig):
     server = grpc.server(ThreadPoolExecutor())
-    add_ImageCaptioningServicer_to_server(ImageCaptioningServicer(cfg), server)
+    add_ImageCaptioningServicer_to_server(ImageCaptioningService(cfg), server)
     port = cfg.server.port
     ip = cfg.server.ip
     server.add_insecure_port(f'{ip}:{port}')
