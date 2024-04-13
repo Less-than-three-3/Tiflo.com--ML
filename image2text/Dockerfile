@@ -1,8 +1,8 @@
 FROM python:3.10-slim
 
-WORKDIR /image2seq
+WORKDIR /app
 
-COPY requirements.txt /image2seq
+COPY requirements.txt /app
 
 RUN mkdir -p config
 RUN mkdir -p protos
