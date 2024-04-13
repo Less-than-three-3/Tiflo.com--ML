@@ -1,0 +1,18 @@
+version: 1
+disable_existing_loggers: true
+formatters:
+  stdout_formatter:
+    format: "%(levelname)s\t%(asctime)s\t%(name)s\t%(message)s"
+handlers:
+  stream_handler:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: stdout_formatter
+loggers:
+  img_server:
+    level: DEBUG
+    handlers: [stream_handler]
+    propagate: False
+root:
+  level: DEBUG
+  handlers: [stream_handler]
