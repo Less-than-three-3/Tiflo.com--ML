@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import hydra
 from omegaconf import OmegaConf, DictConfig
 
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from io import BytesIO
 import torch
 import translators as ts
@@ -44,7 +44,6 @@ class ImageCaptionModel:
             self.device = 'cpu'
             self.torch_type = torch.float32
 
-        
         self.model = LlavaForConditionalGeneration.from_pretrained(
                                                                     model_id, 
                                                                     torch_dtype=self.torch_type, 
@@ -65,10 +64,13 @@ class ImageCaptionModel:
 
         with torch.no_grad():
             start = time.time()
-            inputs = self.processor(self.prompt, raw_image, return_tensors='pt').to(self.device, self.torch_type)
-
-            output = self.model.generate(**inputs, max_new_tokens=200, do_sample=False)
-            text = self.processor.decode(output[0][2:], skip_special_tokens=True)[prompt_len:]
+            try:
+                inputs = self.processor(self.prompt, raw_image, return_tensors='pt').to(self.device, self.torch_type)
+                output = self.model.generate(**inputs, max_new_tokens=200, do_sample=False)
+                text = self.processor.decode(output[0][2:], skip_special_tokens=True)[prompt_len:]
+            except Exception as e:
+                logger.error(f'Непредвиденная ошибка работы модели! Сообщение об ошибке: {e}')
+                return "[ERROR]"
 
             logger.debug(f'Время описания изображения: {time.time() - start}')
 
@@ -79,9 +81,13 @@ class ImageCaptionModel:
 
     def translate(self, en_text):
         start_translate = time.time()
-        translation = ts.translate_text(en_text, translator=self.translator, from_language='en', to_language='ru')
-        logger.debug(f'Время перевода: {time.time() - start_translate}')
+        try:
+            translation = ts.translate_text(en_text, translator=self.translator, from_language='en', to_language='ru')
+        except translators.TranslatorError:
+            logger.error(f'Ошибка при попытке перевода текста! Сообщение об ошибке: {e}')
+            return en_text
 
+        logger.debug(f'Время перевода: {time.time() - start_translate}')
         return translation
 
 
@@ -90,7 +96,16 @@ class ImageCaptioningService(ImageCaptioningServicer):
         self.model = hydra.utils.instantiate(cfg.model)
 
     def ImageCaption(self, request, context):
-        image = Image.open(request.image_path)
+        logger.info('Запрос на описание фото.')
+        try:
+            image = Image.open(request.image_path)
+        except FileNotFoundError:
+            logger.error(f'Файл по пути {request.image_path} не найден!')
+            return "[ERROR]"
+        except UnidentifiedImageError as e:
+            logger.error(f'Ошибка открытия файла по пути {request.image_path}! Сообщение об ошибке: {e}')
+            return "[ERROR]"            
+
         generated_text = self.model.generate_text(image)
         output_text = Text()
         output_text.text = generated_text
@@ -124,4 +139,3 @@ def start_image_captioning_server(cfg: DictConfig):
 if __name__ == '__main__':
     logging_init()
     start_image_captioning_server()
-
