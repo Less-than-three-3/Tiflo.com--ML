@@ -9,7 +9,7 @@ handlers:
     level: DEBUG
     formatter: stdout_formatter
 loggers:
-  img_server:
+  IMAGE2TEXT_MODEL_SERVER:
     level: DEBUG
     handlers: [stream_handler]
     propagate: False

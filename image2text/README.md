@@ -1,15 +1,9 @@
 ### Генерация кода клиента и сервера (grpc)
 
+В папке protos
 ```
-cd protos
-
-python3 -m grpc_tools.protoc -I../protos --python_out=. --pyi_out=. --grpc_python_out=. img2seq.proto
-
-cd ..
+./generate.sh
 ```
-
-В случае ошибки `ModuleNotFoundError: No module named 'img2seq_pb2'` заменить в файле `protos/img2seq_pb2_grpc.py` `import protos.img2seq_pb2 as img2seq__pb2` на `import protos.img2seq_pb2 as img2seq__pb2`
-
 
 ### Запуск сервера 
 
