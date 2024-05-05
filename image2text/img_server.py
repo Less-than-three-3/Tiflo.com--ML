@@ -14,6 +14,7 @@ import translators as ts
 import grpc
 
 from transformers import AutoProcessor, LlavaForConditionalGeneration
+from transformers import BlipProcessor, BlipForConditionalGeneration
 
 from protos.img2seq_pb2_grpc import (
     ImageCaptioningServicer,
