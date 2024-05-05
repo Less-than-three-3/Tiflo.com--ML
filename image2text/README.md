@@ -9,7 +9,6 @@
 
 Через venv
 
-
 ```
 python -m venv venv
 . ./venv/bin/activate
@@ -19,10 +18,13 @@ python img_server.py
 
 Через Docker
 
+Сборка образа
 ```
 docker build --no-cache	-t img2seq_server_image .
 ```
 
+Запуск контейнера
+Перед запуском необходимо указать путь до изображений
 ```
-docker run --name img2seq_server -p 8080:8080 -v $(pwd):/image2seq -v <path>:/data img2seq_server_image
+docker run --name img2seq_server -p 8080:8080 -v $(pwd):/image2seq -v <path to data>:/data img2seq_server_image
 ```
