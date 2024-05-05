@@ -87,26 +87,28 @@ class ImageCaptionModel:
 
             self.device = "cpu"
             self.torch_dtype = torch.float32
+    
+        # self.model = (
+        #     LlavaForConditionalGeneration.from_pretrained(
+        #         model_id,
+        #         torch_dtype=self.torch_dtype,
+        #         low_cpu_mem_usage=True,
+        #     )
+        #     .eval()
+        #     .to(self.device)
+        # )
 
-        self.model = (
-            LlavaForConditionalGeneration.from_pretrained(
-                model_id,
-                torch_dtype=self.torch_dtype,
-                low_cpu_mem_usage=True,
-            )
-            .eval()
-            .to(self.device)
-        )
-
-        self.processor = AutoProcessor.from_pretrained(model_id)
+        # self.processor = AutoProcessor.from_pretrained(model_id)
 
         # self.model = LLavaModelStub()
         # self.processor = LLavaProcessorStub()
+        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large")
+        self.processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
 
         self.use_translator = use_translator
         self.translator = translator
 
-    def generate_text(self, image):
+    def generate_text(self, image, request_id=None):
         """
         Генерация текста на английском по изображению
 
@@ -114,6 +116,8 @@ class ImageCaptionModel:
         ----------
         image: PIL.Image
             Изображение, которому нужны комменатрии
+        request_id: str | int | None
+            Идентификатор запроса
 
         Returns
         -------
@@ -125,35 +129,40 @@ class ImageCaptionModel:
         with torch.no_grad():
             start = time.time()
             try:
-                inputs = self.processor(self.prompt, image, return_tensors="pt").to(
-                    self.device, self.torch_dtype
-                )
-                output = self.model.generate(
-                    **inputs, max_new_tokens=200, do_sample=False
-                )
-                output_text = self.processor.decode(
-                    output[0][2:], skip_special_tokens=True
-                )
-                text = (
-                    output_text[prompt_len:]
-                    .replace("The image shows ", "")
-                    .capitalize()
-                )
+                # inputs = self.processor(self.prompt, image, return_tensors="pt").to(
+                #     self.device, self.torch_dtype
+                # )
+                # output = self.model.generate(
+                #     **inputs, max_new_tokens=200, do_sample=False
+                # )
+                # output_text = self.processor.decode(
+                #     output[0][2:], skip_special_tokens=True
+                # )
+                # text = (
+                #     output_text[prompt_len:]
+                #     .replace("The image shows ", "")
+                #     .capitalize()
+                # )
+
+                inputs = self.processor(image, return_tensors="pt")
+                out = self.model.generate(**inputs)
+                text = self.processor.decode(out[0], skip_special_tokens=True).capitalize()
+
             except Exception as err:
                 logger.error(
-                    "Непредвиденная ошибка работы модели! Сообщение об ошибке: %s",
-                    err
+                    "[ID: %s] Непредвиденная ошибка работы модели! Сообщение об ошибке: %s",
+                    request_id, err
                 )
                 return "[ERROR]"
 
-            logger.debug("Время описания изображения: %.2f", time.time() - start)
+            logger.debug("[ID: %s] Время описания изображения: %.2f", request_id, time.time() - start)
 
         if self.use_translator:
-            text = self.translate(text)
+            text = self.translate(text, request_id)
 
         return text
 
-    def translate(self, en_text):
+    def translate(self, en_text, request_id=None):
         """
         Перевод текста
 
@@ -161,6 +170,8 @@ class ImageCaptionModel:
         ----------
         en_text: str
             Текст на английском языке
+        request_id: str | int | None
+            Идентификатор запроса
 
         Returns
         -------
@@ -177,11 +188,14 @@ class ImageCaptionModel:
             )
         except translators.TranslatorError as err:
             logger.error(
-                "Ошибка при попытке перевода текста! Сообщение об ошибке: %s", err
+                "[ID: %s] Ошибка при попытке перевода текста! Сообщение об ошибке: %s",
+                request_id, err
             )
             return en_text
 
-        logger.debug("Время перевода: %.2f", time.time() - start_translate)
+        logger.debug(
+            "[ID: %s] Время перевода: %.2f",request_id, time.time() - start_translate
+        )
         return translation
 
 
@@ -221,22 +235,27 @@ class ImageCaptioningService(ImageCaptioningServicer):
         str
             Сгенерированный текст
         """
-        logger.info("Запрос на описание фото.")
+        request_id = int(time.time() * 100)
+        logger.info("[ID: %s] Запрос на описание фото.", request_id)
+        logger.debug("[ID: %s] Image path: %s", request_id, request.image_path)
+        output_text = Text()
         try:
             image = Image.open(request.image_path)
         except FileNotFoundError:
             logger.error("Файл по пути %s не найден!", request.image_path)
-            return "[ERROR]"
+            output_text.text = "[ERROR]"
+            return output_text
         except UnidentifiedImageError as err:
             logger.error(
                 "Ошибка открытия файла по пути '%s'! Сообщение об ошибке: %s",
                 request.image_path, err
             )
-            return "[ERROR]"
+            output_text.text = "[ERROR]"
+            return output_text
 
-        generated_text = self.model.generate_text(image)
-        output_text = Text()
+        generated_text = self.model.generate_text(image, request_id)
         output_text.text = generated_text
+        logger.info('[ID: %s] Текст отправлен.', request_id)
         return output_text
 
 
