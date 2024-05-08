@@ -31,6 +31,7 @@ LOGGER_NAME = "IMAGE2TEXT_MODEL_SERVER"
 logger = logging.getLogger(LOGGER_NAME)
 
 
+
 class ImageCaptionModel:
     """
     Модель генерации текста к картинке
@@ -44,25 +45,27 @@ class ImageCaptionModel:
     torch_dtype: torch.*.FloatTensor
         Точность для чисел с плавающей запятой.
         Принимает значения torch.float16 (cuda) или torch.float32 (cpu)
-    model: LlavaForConditionalGeneration
+    model: LlavaForConditionalGeneration | BlipForConditionalGeneration
         Модель для описания изображения
+    model_type: str
+        Тип модели (Llava, blip, etc)
     processor: AutoProcessor
         Преобразование в токены и обратно
     """
 
-    model_id: str
+    model_type: str
     use_only_cuda: bool
     use_translator: bool
     translator: str
 
     prompt = "USER: <image>\nwhat is shown in the image?\nASSISTANT:"
 
-    def __init__(self, model_id, use_only_cuda, use_translator, translator) -> None:
+    def __init__(self, model_type, use_only_cuda, use_translator, translator) -> None:
         """
         Parameters
         ----------
-        model_id: str
-            ID модели на Hugging Face
+        model_type: str
+            Тип модели (Llava, Blip или Stub (заглушка))
         use_only_cuda: bool
             Если True, то в случае отсуствия cuda вызывается исключение
         use_translator: bool
@@ -76,6 +79,9 @@ class ImageCaptionModel:
         RuntimeError
             Вызывается в случае недоступности cuda
             и если use_only_cuda = True
+        ValueError
+            Вызывается, если model_type принимает
+            неизвестное значение
         """
         if torch.cuda.is_available():
             logger.info("Use cuda")
@@ -88,23 +94,37 @@ class ImageCaptionModel:
 
             self.device = "cpu"
             self.torch_dtype = torch.float32
-    
-        # self.model = (
-        #     LlavaForConditionalGeneration.from_pretrained(
-        #         model_id,
-        #         torch_dtype=self.torch_dtype,
-        #         low_cpu_mem_usage=True,
-        #     )
-        #     .eval()
-        #     .to(self.device)
-        # )
 
-        # self.processor = AutoProcessor.from_pretrained(model_id)
+        self.model_type = model_type.upper()
+        match self.model_type:
+            case "LLAVA":
+                model_id = "llava-hf/llava-1.5-7b-hf"
+                self.model = (
+                    LlavaForConditionalGeneration.from_pretrained(
+                        model_id,
+                        torch_dtype=self.torch_dtype,
+                        low_cpu_mem_usage=True,
+                    )
+                    .eval()
+                    .to(self.device)
+                )
 
-        # self.model = LLavaModelStub()
-        # self.processor = LLavaProcessorStub()
-        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large")
-        self.processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
+                self.processor = AutoProcessor.from_pretrained(model_id)
+                logger.info("Use Llava model. Model ID: %s", model_id)
+
+            case "BLIP":
+                model_id = "Salesforce/blip-image-captioning-large"
+                self.model = BlipForConditionalGeneration.from_pretrained(model_id)
+                self.processor = BlipProcessor.from_pretrained(model_id)
+                logger.info("Use Blip model. Model ID: %s", model_id)
+
+            case "STUB":
+                self.model = LLavaModelStub()
+                self.processor = LLavaProcessorStub()
+                logger.info("Use stub model")
+
+            case _:
+                raise ValueError(f"Неизвестная модель описания изображений: {model_type}")
 
         self.use_translator = use_translator
         self.translator = translator
@@ -130,33 +150,44 @@ class ImageCaptionModel:
         with torch.no_grad():
             start = time.time()
             try:
-                # inputs = self.processor(self.prompt, image, return_tensors="pt").to(
-                #     self.device, self.torch_dtype
-                # )
-                # output = self.model.generate(
-                #     **inputs, max_new_tokens=200, do_sample=False
-                # )
-                # output_text = self.processor.decode(
-                #     output[0][2:], skip_special_tokens=True
-                # )
-                # text = (
-                #     output_text[prompt_len:]
-                #     .replace("The image shows ", "")
-                #     .capitalize()
-                # )
+                match self.model_type:
+                    # Каждый случай должен вернуть переменную text
+                    case "BLIP":
+                        inputs = self.processor(image, return_tensors="pt")
+                        output = self.model.generate(**inputs)
+                        text = self.processor.decode(
+                            out[0], skip_special_tokens=True
+                        ).capitalize()
 
-                inputs = self.processor(image, return_tensors="pt")
-                out = self.model.generate(**inputs)
-                text = self.processor.decode(out[0], skip_special_tokens=True).capitalize()
+                    case "LLAVA" | "STUB":
+                        inputs = self.processor(
+                            self.prompt, image, return_tensors="pt"
+                        ).to(self.device, self.torch_dtype)
+                        output = self.model.generate(
+                            **inputs, max_new_tokens=200, do_sample=False
+                        )
+                        output_text = self.processor.decode(
+                            output[0][2:], skip_special_tokens=True
+                        )
+                        text = (
+                            output_text[prompt_len:]
+                            .replace("The image shows ", "")
+                            .capitalize()
+                        )
 
             except Exception as err:
                 logger.error(
                     "[ID: %s] Непредвиденная ошибка работы модели! Сообщение об ошибке: %s",
-                    request_id, err
+                    request_id,
+                    err,
                 )
                 return "[ERROR]"
 
-            logger.debug("[ID: %s] Время описания изображения: %.2f", request_id, time.time() - start)
+            logger.debug(
+                "[ID: %s] Время описания изображения: %.2f",
+                request_id,
+                time.time() - start,
+            )
 
         if self.use_translator:
             text = self.translate(text, request_id)
@@ -187,15 +218,16 @@ class ImageCaptionModel:
                 from_language="en",
                 to_language="ru",
             )
-        except translators.TranslatorError as err:
+        except ts.server.TranslatorError as err:
             logger.error(
                 "[ID: %s] Ошибка при попытке перевода текста! Сообщение об ошибке: %s",
-                request_id, err
+                request_id,
+                err,
             )
             return en_text
 
         logger.debug(
-            "[ID: %s] Время перевода: %.2f",request_id, time.time() - start_translate
+            "[ID: %s] Время перевода: %.2f", request_id, time.time() - start_translate
         )
         return translation
 
@@ -211,12 +243,12 @@ class ImageCaptioningService(ImageCaptioningServicer):
     """
 
     def __init__(self, cfg):
-        '''
+        """
         Parameters
         ----------
         cfg: DictConfig
             Конфигурация модели
-        '''
+        """
         self.model = hydra.utils.instantiate(cfg.model)
 
     def ImageCaption(self, request, context):
@@ -249,14 +281,15 @@ class ImageCaptioningService(ImageCaptioningServicer):
         except UnidentifiedImageError as err:
             logger.error(
                 "Ошибка открытия файла по пути '%s'! Сообщение об ошибке: %s",
-                request.image_path, err
+                request.image_path,
+                err,
             )
             output_text.text = "[ERROR]"
             return output_text
 
         generated_text = self.model.generate_text(image, request_id)
         output_text.text = generated_text
-        logger.info('[ID: %s] Текст отправлен.', request_id)
+        logger.info("[ID: %s] Текст отправлен.", request_id)
         return output_text
 
 
