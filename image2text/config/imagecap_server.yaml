@@ -1,9 +1,10 @@
 model:
   _target_: img_server.ImageCaptionModel
+  # Тип модели. "stub", "blip" или "llava"
   model_type: "blip"
   use_only_cuda: False
   use_translator: True
-  translator: 'google'
+  translator: "google"
 
 server:
   port: 8080

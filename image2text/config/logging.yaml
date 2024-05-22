@@ -2,7 +2,7 @@ version: 1
 disable_existing_loggers: true
 formatters:
   stdout_formatter:
-    format: "%(levelname)s\t%(asctime)s\t%(name)s\t%(message)s"
+    format: "%(asctime)s\t%(levelname)s\t%(name)s\t%(message)s"
 handlers:
   stream_handler:
     class: logging.StreamHandler

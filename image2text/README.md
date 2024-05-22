@@ -20,11 +20,12 @@ docker build --no-cache	-t img2seq_server_image .
 
 Перед запуском:
 
-- указать путь до изображений 
+- указать путь до изображений (можно через переменнуб DATA_PATH)
 - проверить используемую модель в конфиг файле (config/imagecap_server.yaml)
 
 ```
-docker run --name img2seq_server -p 8080:8080 -v $(pwd):/image2seq -v <path to data>:/data img2seq_server_image
+DATA_PATH=~/frontend/public/media
+docker run --name img2seq_server -p 8090:8080 -v $(pwd):/image2seq -v DATA_PATH:/data img2seq_server_image
 ```
 
 ### Через venv
