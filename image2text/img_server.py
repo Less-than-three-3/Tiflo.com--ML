@@ -1,14 +1,13 @@
 import logging
 import time
 import warnings
-import yaml
 from concurrent.futures import ThreadPoolExecutor
 
+import yaml
 import hydra
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig
 
 from PIL import Image, UnidentifiedImageError
-from io import BytesIO
 import torch
 import translators as ts
 import grpc
@@ -27,6 +26,8 @@ from stubs import LLavaModelStub, LLavaProcessorStub
 warnings.filterwarnings(action="ignore")
 
 LOGGER_NAME = "IMAGE2TEXT_MODEL_SERVER"
+MODEL_LLAVA_ID = "llava-hf/llava-1.5-7b-hf"
+MODEL_BLIP_ID = "Salesforce/blip-image-captioning-large"
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -98,10 +99,9 @@ class ImageCaptionModel:
         self.model_type = model_type.upper()
         match self.model_type:
             case "LLAVA":
-                model_id = "llava-hf/llava-1.5-7b-hf"
                 self.model = (
                     LlavaForConditionalGeneration.from_pretrained(
-                        model_id,
+                        MODEL_LLAVA_ID,
                         torch_dtype=self.torch_dtype,
                         low_cpu_mem_usage=True,
                     )
@@ -109,14 +109,13 @@ class ImageCaptionModel:
                     .to(self.device)
                 )
 
-                self.processor = AutoProcessor.from_pretrained(model_id)
-                logger.info("Use Llava model. Model ID: %s", model_id)
+                self.processor = AutoProcessor.from_pretrained(MODEL_LLAVA_ID)
+                logger.info("Use Llava model. Model ID: %s", MODEL_LLAVA_ID)
 
             case "BLIP":
-                model_id = "Salesforce/blip-image-captioning-large"
-                self.model = BlipForConditionalGeneration.from_pretrained(model_id)
-                self.processor = BlipProcessor.from_pretrained(model_id)
-                logger.info("Use Blip model. Model ID: %s", model_id)
+                self.model = BlipForConditionalGeneration.from_pretrained(MODEL_BLIP_ID)
+                self.processor = BlipProcessor.from_pretrained(MODEL_BLIP_ID)
+                logger.info("Use Blip model. Model ID: %s", MODEL_BLIP_ID)
 
             case "STUB":
                 self.model = LLavaModelStub()
@@ -145,7 +144,6 @@ class ImageCaptionModel:
         str
             Сгенерированный и переведённый текст
         """
-        prompt_len = 45
 
         with torch.no_grad():
             start = time.time()
@@ -156,10 +154,11 @@ class ImageCaptionModel:
                         inputs = self.processor(image, return_tensors="pt")
                         output = self.model.generate(**inputs)
                         text = self.processor.decode(
-                            out[0], skip_special_tokens=True
+                            output[0], skip_special_tokens=True
                         ).capitalize()
 
                     case "LLAVA" | "STUB":
+                        prompt_len = 45
                         inputs = self.processor(
                             self.prompt, image, return_tensors="pt"
                         ).to(self.device, self.torch_dtype)
