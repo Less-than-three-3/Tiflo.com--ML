@@ -9,8 +9,9 @@ services:
     command: python img_server.py
     volumes:
       - ./image2text:/app
+      - ~/frontend/public/media:/data
     ports:
-      - 8085:8080
+      - 8090:8080
 
   text2voice:
     container_name: text2voice
