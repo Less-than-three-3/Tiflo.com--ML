@@ -25,7 +25,7 @@ docker build --no-cache	-t img2seq_server_image .
 
 ```
 DATA_PATH=~/frontend/public/media
-docker run --name img2seq_server -p 8090:8080 -v $(pwd):/image2seq -v DATA_PATH:/data img2seq_server_image
+docker run --name img2seq_server -p 8090:8080 -v $(pwd):/image2seq -v $DATA_PATH:/data img2seq_server_image
 ```
 
 ### Через venv
